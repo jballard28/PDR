@@ -29,7 +29,7 @@ Decompress the LD scores and weights `.tgz` files, and then unzip each of the fi
 ```
 clustertraits = {'/path/to/PASS_Type_2_Diabetes.sumstats','/path/to/PASS_BMI1.sumstats','/path/to/PASS_Triglycerides.sumstats'};
 l2fp = '/path/to/baseline_unzipped/baselineLD.';
-weightsfp = '/path/to/1000G_Phase3_weights_hm3_no_MHC_unzipped/weights.hm3.noMHC.';
+weightsfp = '/path/to/1000G_Phase3_weights_hm3_no_MHC_unzipped/weights.hm3_noMHC.';
 
 data = DATA(clustertraits, 'LDscoreDir', l2fp, 'WeightsDir', weightsfp);
 ```
