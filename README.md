@@ -36,3 +36,11 @@ data = DATA(clustertraits, 'LDscoreDir', l2fp, 'WeightsDir', weightsfp);
 
 ## Fitting a PDR model
 See `example_scripts/fit_model.m` for an example 
+
+## Visualizing the components as heat maps
+
+## Hypothesis testing
+
+## Calculating posterior mean effect sizes
+
+## Calculating replication r<sup>2</sup>
