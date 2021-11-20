@@ -12,7 +12,7 @@ You will need summary statistics that have the following columns in this exact o
 5. CHISQ: squared Z-score
 6. Z: Z-score (note that it's sign is with respect to A1)
 
-Download the summary statistics that will be input to PDR. For some example data, one can run the commands:\
+Download the summary statistics that will be input to PDR. For some example data, one can run the commands:
 ```
 wget https://storage.googleapis.com/broad-alkesgroup-public/sumstats_formatted/PASS_Type_2_Diabetes.sumstats
 wget https://storage.googleapis.com/broad-alkesgroup-public/sumstats_formatted/PASS_BMI1.sumstats
@@ -33,3 +33,6 @@ weightsfp = '/path/to/1000G_Phase3_weights_hm3_no_MHC_unzipped/weights.hm3_noMHC
 
 data = DATA(clustertraits, 'LDscoreDir', l2fp, 'WeightsDir', weightsfp);
 ```
+
+## Fitting a PDR model
+See `example_scripts/fit_model.m` for an example 
