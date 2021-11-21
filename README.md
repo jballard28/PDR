@@ -44,13 +44,35 @@ See `example_scripts/plot_heatmaps.m` for an example using the output of `fit_mo
 
 This script visualizes the component covariance matrices normalized such that the total variance explained across all components for each trait is equal to 1.
 
-To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, see `plot_varexp_heatmaps.m`. To generate the latter heat maps, you will need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the command:
+To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, see `plot_varexp_heatmaps.m`. To generate the latter heat maps, you will need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the following command:
 ```
 wget https://www.dropbox.com/sh/mclm1urkxs8ga80/AABLDZRREAkGj5A1D3x8z_FOa/1kg_LD.HM3.window1cm.noblocks.mat?dl=0
 ```
 
 ## Hypothesis testing
+PDR has the ability to calculate p-values for testing a null model against an alternative model, where the null model contains a subset of the components in the alternative model (i.e., the null and alternative models are nested). The `test_cpts` function can be used to test the significance of each of the trait-specific components by iteratively removing these components one at a time and calculating a p-value. If the p-value is null, this indicates that the trait-specific component was needed to produce a better model fit. Otherwise, the p-value is significant. One can run the `test_cpts` function, as follows:
+```
+pval = model.test_cpts(ecf);
+```
+Where `model` is the model that has been fit to the data, and `ecf` is the empirical characteristic function object that had been used to fit the model. See the documentation for more details on the other parameter options.
+
+PDR can also give p-values for comparing models that the user specifies, as long as those models are nested. To do this, one would run the `test` function as follows:
+```
+pval = nullmodel.test(altmodel,nullmodel_ecf);
+```
+Where `nullmodel_ecf` is the ECF that used to fit the null model.
+
+Alternatively, one can calulate a p-value for a model against an alternative that represents the best that the model could fit the data. This gives a sense of how well the model fits the data, and whether there exists a larger model that could produce a better fit. This can be produced as follows:
+```
+pval = model.test(ecf);
+```
 
 ## Calculating posterior mean effect sizes
+Using the effect size distribution estimated by PDR, we can calculate posterior mean effect sizes as well as the membership scalars for each SNP-component pair. This can be done using the `predict` function as follows:
+```
+[alpha, ~, posterior_scalars] = est.predict(data,'minWeight',1e-6);
+```
+Where `alpha` is the posterior mean effect sizes (# SNPs x # traits) and `posterior_scalars` are the posterior variances (# SNPs x # components) that indicate the probability that the SNP was drawn from a given component. `data` is the data object that was used for loading in the data (see "Loading Data"). `minWeight` is a parameter within `predict` which sets a threshold for discarding component combinations that are less likely. This helps with reducing the computational burden.
+
 
 ## Calculating replication r<sup>2</sup>
