@@ -35,9 +35,19 @@ data = DATA(clustertraits, 'LDscoreDir', l2fp, 'WeightsDir', weightsfp);
 ```
 
 ## Fitting a PDR model
-See `example_scripts/fit_model.m` for an example 
+See `example_scripts/fit_model.m` for an example.
+
+There are many parameters in this script that can be altered according to which type of model you would like to fit. For example, the number of rank-one ('factor-like') and full-rank ('generic pleiotropic') components can be altered. If more traits or more components are being fit, we recommend increasing the number of initializations (`ninit`) and also the maximum number of gradient descent steps (`gdsteps`). If the code is giving warnings that there is an insufficient number of sampling times compared to the number of parameters, we recommend reducing the `rotation_tolerance` parameter in the `initialize_fit` function.
 
 ## Visualizing the components as heat maps
+See `example_scripts/plot_heatmaps.m` for an example using the output of `fit_model.m`.
+
+This script visualizes the component covariance matrices normalized such that the total variance explained across all components for each trait is equal to 1.
+
+To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, see `plot_varexp_heatmaps.m`. To generate the latter heat maps, you will need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the command:
+```
+wget https://www.dropbox.com/sh/mclm1urkxs8ga80/AABLDZRREAkGj5A1D3x8z_FOa/1kg_LD.HM3.window1cm.noblocks.mat?dl=0
+```
 
 ## Hypothesis testing
 
