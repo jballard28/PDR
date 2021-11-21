@@ -37,7 +37,7 @@ data = DATA(clustertraits, 'LDscoreDir', l2fp, 'WeightsDir', weightsfp);
 ## Fitting a PDR model
 See `example_scripts/fit_model.m` for an example.
 
-There are many parameters in this script that can be altered according to which type of model you would like to fit. For example, the number of rank-one ('factor-like') and full-rank ('generic pleiotropic') components can be altered. If more traits or more components are being fit, we recommend increasing the number of initializations (`ninit`) and also the maximum number of gradient descent steps (`gdsteps`). If the code is giving warnings that there is an insufficient number of sampling times compared to the number of parameters, we recommend reducing the `rotation_tolerance` parameter in the `initialize_fit` function.
+There are many parameters in this script that can be altered according to which type of model you would like to fit. For example, the number of rank-one ('factor-like') and full-rank ('generic pleiotropic') components can be altered. If more traits or more components are being fit, we recommend increasing the number of initializations (`ninit`) and also the maximum number of gradient descent steps (`gdsteps`). If the code is giving warnings that there is an insufficient number of sampling times compared to the number of parameters, we recommend reducing the `rotation_tolerance` parameter in the `initialize_fit` function within `MODEL`.
 
 ## Visualizing the components as heat maps
 See `example_scripts/plot_heatmaps.m` for an example using the output of `fit_model.m`.
@@ -50,13 +50,13 @@ wget https://www.dropbox.com/sh/mclm1urkxs8ga80/AABLDZRREAkGj5A1D3x8z_FOa/1kg_LD
 ```
 
 ## Hypothesis testing
-PDR has the ability to calculate p-values for testing a null model against an alternative model, where the null model contains a subset of the components in the alternative model (i.e., the null and alternative models are nested). The `test_cpts` function can be used to test the significance of each of the trait-specific components by iteratively removing these components one at a time and calculating a p-value. If the p-value is null, this indicates that the trait-specific component was needed to produce a better model fit. Otherwise, the p-value is significant. One can run the `test_cpts` function, as follows:
+PDR has the ability to calculate p-values for testing a null model against an alternative model, where the null model contains a subset of the components in the alternative model (i.e., the null and alternative models are nested). The `test_cpts` function  within `MODEL` can be used to test the significance of each of the trait-specific components by iteratively removing these components one at a time and calculating a p-value. If the p-value is null, this indicates that the trait-specific component was needed to produce a better model fit. Otherwise, the p-value is significant. One can run the `test_cpts` function as follows:
 ```
 pval = model.test_cpts(ecf);
 ```
 Where `model` is the model that has been fit to the data, and `ecf` is the empirical characteristic function object that had been used to fit the model. See the documentation for more details on the other parameter options.
 
-PDR can also give p-values for comparing models that the user specifies, as long as those models are nested. To do this, one would run the `test` function as follows:
+PDR can also give p-values for comparing models that the user specifies, as long as those models are nested. To do this, one would run the `test` function within `MODEL` as follows:
 ```
 pval = nullmodel.test(altmodel,nullmodel_ecf);
 ```
@@ -68,7 +68,7 @@ pval = model.test(ecf);
 ```
 
 ## Calculating posterior mean effect sizes
-Using the effect size distribution estimated by PDR, we can calculate posterior mean effect sizes as well as the membership scalars for each SNP-component pair. This can be done using the `predict` function as follows:
+Using the effect size distribution estimated by PDR, we can calculate posterior mean effect sizes as well as the membership scalars for each SNP-component pair. This can be done using the `predict` function within `MODEL` as follows:
 ```
 [alpha, ~, posterior_scalars] = est.predict(data,'minWeight',1e-6);
 ```
@@ -76,3 +76,15 @@ Where `alpha` is the posterior mean effect sizes (# SNPs x # traits) and `poster
 
 
 ## Calculating replication r<sup>2</sup>
+To calculate expected and/or observed replication r<sup>2</sup>, one can run the function, `expected_observed_r2` (located in the subroutines directory). First, one must have the fitted PDR model (`est`) loaded, as well as the data (`data`) (see "Loading Data") and the posterior mean effect sizes (`alpha`) (see "Calculating posterior mean effect sizes"). Here, `traitidx` is 1 because this corresponds to T2D, the trait for which we are assessing replication r<sup>2</sup>. This function is run as follows:
+```
+traitnames = {'T2D','BMI','TG'};
+replication_files = {'/path/to/replication_t2d_data.sumstats'};
+traitidx = 1;
+output = expected_observed_r2(est,data,traitnames,alpha,replication_files,traitidx);
+```
+Or, if there is no replication data and only predicted replication r<sup>2</sup> is desired, one can run:
+```
+output = expected_observed_r2(est,data,traitnames,alpha,{},traitidx);
+```
+Note that `output` is a struct with replication r<sup>2</sup> for PDR, MTAG, and the original summary statistics, and it will have either expected and observed, or only the expected values depending on whether replication_files is empty. `output` will also contain the numerical values for the per-SNP variance explained for both MTAG and PDR.
