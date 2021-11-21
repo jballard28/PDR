@@ -1,7 +1,8 @@
 x include links to where one can download the data and command to get some example data (wget)
 x script for loading data
-- script for fitting a model to the data
-- script for hypothesis testing
-- script for getting posterior mean effect sizes
-- script for calculating estimated replication r2?
-- script for tissue-specific enrichment analysis?
+x script for fitting a model to the data
+- script for calculating estimated replication r2
+ > make new function for this and write how to run the function in the README
+
+- clean up code by removing unused variables and methods
+- add more documentation

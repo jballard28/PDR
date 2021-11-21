@@ -3,7 +3,7 @@
 load('fitmodel.mat')
 
 % Calling predict function to get posterior scalars
-[alpha, MAP_scalars, posterior_scalars] = est.predict(data,'minWeight',1e-6);
+[alpha, ~, posterior_scalars] = est.predict(data,'minWeight',1e-6);
 
 alpha = alpha ./ sqrt(diag(est.cov))';
 
