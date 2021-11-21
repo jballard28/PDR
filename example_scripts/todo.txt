@@ -1,5 +1,5 @@
-- include links to where one can download the data and command to get some example data (wget)
-- script for loading data
+x include links to where one can download the data and command to get some example data (wget)
+x script for loading data
 - script for fitting a model to the data
 - script for hypothesis testing
 - script for getting posterior mean effect sizes
