@@ -91,6 +91,8 @@ incl_j = j;
 % MTAG expected
 [~,~, mtag_expected_jk] = jackknife_regression(ones(size(incl_j)), beta_MTAG_pm(incl_j,1).^2,whichBlock(incl_j));
 
+observed_jk = [];
+mtag_observed_jk = [];
 if ~isempty(replication_file)
     incl_i = i;
     

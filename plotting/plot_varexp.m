@@ -17,6 +17,10 @@ observed_pdr_varexp_se = r2_output.observed_pdr_varexp_se;
 observed_mtag_varexp = r2_output.observed_mtag_varexp;
 observed_mtag_varexp_se = r2_output.observed_mtag_varexp_se;
 
+if isempty(observed_pdr_varexp)
+    error("Cannot produce this plot when there is no replication data");
+end
+
 nblocks=100;
 
 % PDR expected_pdr_varexp
