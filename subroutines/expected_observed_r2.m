@@ -1,4 +1,4 @@
-function output = expected_observed_r2(est,data,traitnames,alpha,replication_files,traitidx)
+function output = expected_observed_r2(est,data,traitnames,alpha,replication_file,traitidx)
 %UNTITLED3 Summary of this function goes here
 %   Detailed explanation goes here
 %   replication_files: cellarray of paths to replication data file
@@ -7,8 +7,8 @@ function output = expected_observed_r2(est,data,traitnames,alpha,replication_fil
 est.traits=traitnames;
 alpha = alpha ./ sqrt(diag(est.cov))';
 
-if ~isempty(replication_files)
-    [rsids,z] = import_sumstat_files(replication_files);
+if ~isempty(replication_file)
+    [rsids,z] = import_sumstat_files(replication_file);
     [~,i,j]=intersect(rsids,data.snps);
     zscores = data.z;
     ntraits=size(zscores,2);
@@ -50,12 +50,12 @@ for k1=1:ntraits
         expected_se(k1,k2) = std(log10(expected_jk))* sqrt(nblocks);
         
         % MTAG expected
-        [~,~, expected_jk] = jackknife_regression(ones(size(incl_j)), beta_MTAG_pm(incl_j,1).^2,whichBlock(incl_j));
-        mtag_expected(k1,k2) = mean(log10(expected_jk));
-        mtag_expected_se(k1,k2) = std(log10(expected_jk))* sqrt(nblocks);
+        [~,~, mtag_expected_jk] = jackknife_regression(ones(size(incl_j)), beta_MTAG_pm(incl_j,1).^2,whichBlock(incl_j));
+        mtag_expected(k1,k2) = mean(log10(mtag_expected_jk));
+        mtag_expected_se(k1,k2) = std(log10(mtag_expected_jk))* sqrt(nblocks);
         
         
-        if ~isempty(replication_files)
+        if ~isempty(replication_file)
             incl_i = i(incl);
             
             % PDR observed
@@ -66,7 +66,7 @@ for k1=1:ntraits
             
             % MTAG observed
             [~,~, observed_jk] = jackknife_regression(ones(size(incl_j)), (beta_MTAG_pm(incl_j,1) .* z(incl_i,1)),whichBlock(incl_j));
-            observed_jk = observed_jk.^2 ./ expected_jk;
+            observed_jk = observed_jk.^2 ./ mtag_expected_jk;
             mtag_observed(k1,k2) = mean(log10(observed_jk));
             mtag_observed_se(k1,k2) = std(log10(observed_jk)) * sqrt(nblocks);
             
@@ -85,27 +85,25 @@ for k1=1:ntraits
 end
 
 % Expected vs observed for set of all SNPs
-if 1
-    incl_j = j;
-    [~,~, expected_jk] = jackknife_regression(ones(size(incl_j)), alpha(incl_j,1).^2,whichBlock(incl_j));
+incl_j = j;
+[~,~, expected_jk] = jackknife_regression(ones(size(incl_j)), alpha(incl_j,1).^2,whichBlock(incl_j));
 
-    % MTAG expected
-    [~,~, mtag_expected_jk] = jackknife_regression(ones(size(incl_j)), beta_MTAG_pm(incl_j,1).^2,whichBlock(incl_j));
+% MTAG expected
+[~,~, mtag_expected_jk] = jackknife_regression(ones(size(incl_j)), beta_MTAG_pm(incl_j,1).^2,whichBlock(incl_j));
 
-    if ~isempty(replication_files)
-        incl_i = i;
-        
-        % PDR observed
-        [~,~, observed_jk] = jackknife_regression(ones(size(incl_j)), (alpha(incl_j,1) .* z(incl_i,1)),whichBlock(incl_j));
-        observed_jk = observed_jk.^2 ./ expected_jk;
-
-        % MTAG observed
-        [~,~, mtag_observed_jk] = jackknife_regression(ones(size(incl_j)), (beta_MTAG_pm(incl_j,1) .* z(incl_i,1)),whichBlock(incl_j));
-        mtag_observed_jk = mtag_observed_jk.^2 ./ mtag_expected_jk;
-        
-    end
+if ~isempty(replication_file)
+    incl_i = i;
+    
+    % PDR observed
+    [~,~, observed_jk] = jackknife_regression(ones(size(incl_j)), (alpha(incl_j,1) .* z(incl_i,1)),whichBlock(incl_j));
+    observed_jk = observed_jk.^2 ./ expected_jk;
+    
+    % MTAG observed
+    [~,~, mtag_observed_jk] = jackknife_regression(ones(size(incl_j)), (beta_MTAG_pm(incl_j,1) .* z(incl_i,1)),whichBlock(incl_j));
+    mtag_observed_jk = mtag_observed_jk.^2 ./ mtag_expected_jk;
     
 end
+
 
 data.runLDscore;
 noBlocks = 100;
@@ -123,7 +121,7 @@ mtag_observed = [];
 mtag_observed_se = [];
 observed = [];
 observed_se = [];
-if ~isempty(replication_files)
+if ~isempty(replication_file)
     mtag_observed=mean(mtag_observed_jk);
     mtag_observed_se=std(mtag_observed_jk)*sqrt(noBlocks);
     observed=mean(observed_jk);
@@ -131,14 +129,16 @@ if ~isempty(replication_files)
 end
 
 output = struct('pdr_observed',observed,'pdr_observed_se',observed_se,...
-    'expected',expected,'expected_se',expected_se,...
+    'pdr_expected',expected,'pdr_expected_se',expected_se,...
     'mtag_expected',mtag_expected,'mtag_expected_se',mtag_expected_se,...
     'mtag_observed',mtag_observed,'mtag_observed_se',mtag_observed_se,...
     'sumstats_expected',sumstats_expected,'sumstats_expected_se',sumstats_expected_se,...
     'expected_pdr_varexp',expected_pdr_varexp,'expected_pdr_varexp_se',expected_pdr_varexp_se,...
     'expected_mtag_varexp',expected_mtag_varexp,'expected_mtag_varexp_se',expected_mtag_varexp_se,...
     'observed_pdr_varexp',observed_pdr_varexp,'observed_pdr_varexp_se',observed_pdr_varexp_se,...
-    'observed_mtag_varexp',observed_mtag_varexp,'observed_mtag_varexp_se',observed_mtag_varexp_se);
+    'observed_mtag_varexp',observed_mtag_varexp,'observed_mtag_varexp_se',observed_mtag_varexp_se,...
+    'pdr_expected_jk',expected_jk,'pdr_observed_jk',observed_jk,...
+    'mtag_expected_jk',mtag_expected_jk,'mtag_observed_jk',mtag_observed_jk);
 
 end
 
