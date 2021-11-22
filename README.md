@@ -88,3 +88,11 @@ Or, if there is no replication data and only predicted replication r<sup>2</sup>
 output = expected_observed_r2(est,data,traitnames,alpha,{},traitidx);
 ```
 Note that `output` is a struct with replication r<sup>2</sup> for PDR, MTAG, and the original summary statistics, and it will have either expected and observed, or only the expected values depending on whether replication_files is empty. `output` will also contain the numerical values for the per-SNP variance explained for both MTAG and PDR.
+
+### Plotting replication r<sup>2</sup> results
+A bar plot comparing the expected (and observed, if included) replication r<sup>2</sup> for the original summary statistics, MTAG, and PDR can be generated using the function, `r2_barplot` (located in the `plotting` directory).
+
+The variance explained scatter plots comparing expected and observed variance can be generated using the `plot_varexp` function found within `plotting`. This plot can only be created if there is replication data available.
+
+Both of these plotting methods require the output of `expected_observed_r2` (see above).
+
