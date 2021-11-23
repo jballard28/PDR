@@ -42,14 +42,18 @@ There are many parameters in this script that can be altered according to which 
 ## Visualizing the components as heat maps
 The `plot_heatmap` function (in `plotting`) visualizes heatmaps of the component covariance matrices that are normalized such that the total variance explained across all components for each trait is equal to 1. Below is an example of how to run this function using the output of `fit_model.m`:
 ```
-tnames={'T2D','BMI','TG'};
+tnames = {'T2D','BMI','TG'};
 npleio = 2;
 plot_heatmap(est,tnames,npleio)
 ```
 
-To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, see `plot_varexp_heatmaps.m`. To generate the latter heat maps, you will need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the following command:
+To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, one can use the function within the MODEL class, `h2plot`. Below is an example using the model output by the example script, `fit_model.m`:
 ```
-wget https://www.dropbox.com/sh/mclm1urkxs8ga80/AABLDZRREAkGj5A1D3x8z_FOa/1kg_LD.HM3.window1cm.noblocks.mat?dl=0
+traits = {'T2D','BMI','TG'};
+cptnames = {'cpt1','cpt2'};
+included_cpts = [4,5];
+est.h2plot('traitNames',traits,'cptNames',cptnames,'whichCpts',included_cpts);
+title('Variance explained by each component')
 ```
 
 ## Hypothesis testing
@@ -78,9 +82,13 @@ Using the effect size distribution estimated by PDR, we can calculate posterior 
 Where `alpha` is the posterior mean effect sizes (# SNPs x # traits) and `posterior_scalars` are the posterior variances (# SNPs x # components) that indicate the probability that the SNP was drawn from a given component. `data` is the data object that was used for loading in the data (see "Loading Data"). `minWeight` is a parameter within `predict` which sets a threshold for discarding component combinations that are less likely. This helps with reducing the computational burden.
 
 ### Plotting posterior mean effect sizes
-To plot scatter plots of the posterior mean effect sizes on pairs of traits similar to those in Fig. 2c-g and Fig. 3c-g, one can run the function `make_scatterplot` (located in `plotting`). Note that this function depends on `alpha` and `posterior_scalars`, which are outputs of the `predict` function (see above). Also note that you will need `1kg_LD.HM3.window1cm.noblocks.mat` (instructions for downloading this are above under "Visualizing the components as heat maps"). Below is an example for plotting pairs of traits from the example shown in "Fitting a PDR model" above:
+To plot scatter plots of the posterior mean effect sizes on pairs of traits similar to those in Fig. 2c-g and Fig. 3c-g, one can run the function `make_scatterplot` (located in `plotting`). Note that this function depends on `alpha` and `posterior_scalars`, which are outputs of the `predict` function (see above). You will also need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the following command:
 ```
-cptnames = {'cpt1','cpt2','cpt3'};
+wget https://www.dropbox.com/sh/mclm1urkxs8ga80/AABLDZRREAkGj5A1D3x8z_FOa/1kg_LD.HM3.window1cm.noblocks.mat?dl=0
+```
+Below is an example for plotting pairs of traits using the model output by `fit_model.m`:
+```
+cptnames = {'cpt1','cpt2'};
 traits = {'T2D','BMI','TG'};
 subplot_traits = [1 2; 1 3; 2 3];
 included_cpts = [4,5];
