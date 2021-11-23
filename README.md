@@ -42,7 +42,12 @@ There are many parameters in this script that can be altered according to which 
 ## Visualizing the components as heat maps
 See `example_scripts/plot_heatmaps.m` for an example using the output of `fit_model.m`.
 
-This script visualizes the component covariance matrices normalized such that the total variance explained across all components for each trait is equal to 1.
+The `plot_heatmap` function (in `plotting`) visualizes heatmaps of the component covariance matrices that are normalized such that the total variance explained across all components for each trait is equal to 1. Below is an example of how to run this function using the output of `fit_model.m`:
+```
+tnames={'T2D','BMI','TG'};
+npleio = 2;
+plot_heatmap(est,tnames,npleio)
+```
 
 To generate heat maps of variance explained for each trait similar to the heat maps shown in our manuscript, see `plot_varexp_heatmaps.m`. To generate the latter heat maps, you will need to download `1kg_LD.HM3.window1cm.noblocks.mat`. This can be  done by running the following command:
 ```
