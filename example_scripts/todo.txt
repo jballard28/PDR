@@ -1,9 +1,0 @@
-x include links to where one can download the data and command to get some example data (wget)
-x script for loading data
-x script for fitting a model to the data
-x script for calculating estimated replication r2
- x make new function for this and write how to run the function in the README
-- script for making variance explained plots and maybe bargraphs for replication r2
-
-- clean up code by removing unused variables and methods
-- add more documentation
