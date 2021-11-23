@@ -40,8 +40,6 @@ See `example_scripts/fit_model.m` for an example.
 There are many parameters in this script that can be altered according to which type of model you would like to fit. For example, the number of rank-one ('factor-like') and full-rank ('generic pleiotropic') components can be altered. If more traits or more components are being fit, we recommend increasing the number of initializations (`ninit`) and also the maximum number of gradient descent steps (`gdsteps`). If the code is giving warnings that there is an insufficient number of sampling times compared to the number of parameters, we recommend reducing the `rotation_tolerance` parameter in the `initialize_fit` function within `MODEL`.
 
 ## Visualizing the components as heat maps
-See `example_scripts/plot_heatmaps.m` for an example using the output of `fit_model.m`.
-
 The `plot_heatmap` function (in `plotting`) visualizes heatmaps of the component covariance matrices that are normalized such that the total variance explained across all components for each trait is equal to 1. Below is an example of how to run this function using the output of `fit_model.m`:
 ```
 tnames={'T2D','BMI','TG'};
