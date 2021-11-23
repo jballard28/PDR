@@ -74,6 +74,17 @@ Using the effect size distribution estimated by PDR, we can calculate posterior 
 ```
 Where `alpha` is the posterior mean effect sizes (# SNPs x # traits) and `posterior_scalars` are the posterior variances (# SNPs x # components) that indicate the probability that the SNP was drawn from a given component. `data` is the data object that was used for loading in the data (see "Loading Data"). `minWeight` is a parameter within `predict` which sets a threshold for discarding component combinations that are less likely. This helps with reducing the computational burden.
 
+### Plotting posterior mean effect sizes
+To plot scatter plots of the posterior mean effect sizes on pairs of traits similar to those in Fig. 2c-g and Fig. 3c-g, one can run the function `make_scatterplot` (located in `plotting`). Note that this function depends on `alpha` and `posterior_scalars`, which are outputs of the `predict` function (see above). Also note that you will need `1kg_LD.HM3.window1cm.noblocks.mat` (instructions for downloading this are above under "Visualizing the components as heat maps"). Below is an example for plotting pairs of traits from the example shown in "Fitting a PDR model" above:
+```
+cptnames = {'cpt1','cpt2','cpt3'};
+traits = {'T2D','BMI','TG'};
+subplot_traits = [1 2; 1 3; 2 3];
+included_cpts = [4,5];
+load('/path/to/1kg_LD.HM3.window1cm.noblocks.mat','LDSNPs','RRb');
+make_scatterplot(est,data,alpha,posterior_scalars,cptnames,traitnames,subplot_traits,included_cpts,LDSNPs,RRb)
+```
+This will make a scatter plot for every pair of traits specified in each row of `subplot_traits`.
 
 ## Calculating replication r<sup>2</sup>
 To calculate expected and/or observed replication r<sup>2</sup>, one can run the function, `expected_observed_r2` (located in the subroutines directory). First, one must have the fitted PDR model (`est`) loaded, as well as the data (`data`) (see "Loading Data") and the posterior mean effect sizes (`alpha`) (see "Calculating posterior mean effect sizes"). Here, `traitidx` is 1 because this corresponds to T2D, the trait for which we are assessing replication r<sup>2</sup>. This function is run as follows:
