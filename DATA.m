@@ -9,60 +9,63 @@ classdef DATA < matlab.mixin.Copyable
         sigmaEps {ismatrix} % covariance matrix of sampling noise
         LDeigenvectors % cell array of eigenvectors for LD blocks
         LDeigenvalues % cell array of eigenvalues
-        l2
-        weights
-        ldsc
-        additive_cpts
+        l2 % baseline model LD scores for each SNP and each annotation
+        weights % baseline model regression weights for each SNP
+        ldsc % struct containing the output of running LDSC on the data
         whichSNPs % cellarray of lists of which SNPs belong to each component
-        normalizer
+        normalizer % 1/sqrt(var(alpha)): normalizing constant to make var(E(ZZ|alpha))=1
         noSNPsAnnot % number of SNPs in each l2 annotation
     end
     
     properties (Dependent)
-        noTraits
-        noSNPs
-        noBlocks
-        cov
+        noTraits % number of traits
+        noSNPs % number of SNPs
+        noBlocks % number of jackknife blocks
+        cov % covariance matrix of the data
     end
     
     methods
-        % class constructor
         function obj = DATA(input,varargin)
+        % Class constructor
+        %
+        % Required Inputs:
+        %   input: Can be either a MODEL object, a cell array of sumstats
+        %   file directories, or the name of the directory containing all
+        %   sumstats files to be loaded in. If input is a MODEL, this will
+        %   construct a DATA object containing data simulated from that
+        %   model
+        %
+        % Optional Inputs:
+        %   mm: Number of NSPs
+        %   noBlocks: Number of jackknife blocks
+        %   LDeigenvectors: Eigenvectors of LD matrices (one cell per block)
+        %   LDeigenvalues: Eigenvalues of LD matrices (one column per block)
+        %   LDscoreDir: Path to LD scores
+        %   WeightsDir: Path to regression weights
+        %   l2snp: Pre-loaded SNPs corresponding to pre-loaded LD scores
+        %   l2: Pre-loaded LD scores
+        %   noiseVar: Covariance matrix of epsilon (noise)
+        %
+        % Outputs:
+        %   obj: DATA object
             
             if nargin == 0
                 return;
             end
             
             p=inputParser;
-            % Primary input
+            
             addRequired(p, 'input', @(obj)isa(obj,'MODEL') || iscell(obj) || ischar(obj));
-            
-            % Number of SNPs
+
             addParameter(p, 'mm', []);
-            
-            % Number of jackknife blocks
             addParameter(p, 'noBlocks', 100);
-            
-            % Eigenvectors of LD matrices (one cell per block)
             addParameter(p, 'LDeigenvectors', {});
-            
-            % Eigenvalues of LD matrices (one column per block)
             addParameter(p, 'LDeigenvalues', []);
-            
-            % Path to LD scores
             addParameter(p, 'LDscoreDir', []);
-            % Path to regression weights
             addParameter(p, 'WeightsDir', []);
-            
-            % pre-loaded LD scores
             addParameter(p, 'l2snp', []);
             addParameter(p, 'l2', []);
-            
-            % Covariance matrix of epsilon
             addParameter(p, 'noiseVar', []);
-            
-            % Whether to use additive components
-            addParameter(p, 'additive_cpts', 1);
             
             parse(p,input,varargin{:});
             
@@ -85,11 +88,8 @@ classdef DATA < matlab.mixin.Copyable
                 mm=p.Results.mm;
             end
             
-            obj.additive_cpts = p.Results.additive_cpts;
-            
             noisevar = p.Results.noiseVar;
-                
-            
+
             % simulate from MODEL
             if isa(input,'MODEL')
                 if isempty(mm); error('Please specify number of SNPs to simulate from a MODEL'); end
@@ -178,12 +178,19 @@ classdef DATA < matlab.mixin.Copyable
         end
         
         function runLDscore(obj)
+        % Runs LD score regression on the DATA object
             LDSCout = CLDSC(obj);
             obj.sigmaEps = LDSCout.intercept;
             obj.ldsc=LDSCout;
         end
         
         function normalizer = normalize(obj)
+        % Normalizes the summary statistics such that the variance of the
+        % marginal effect sizes is 1
+        %
+        % Outputs:
+        %   normalizer: normalization constant, 1/sqrt(var(alpha))
+        
             % covariance of alpha
                 trait_cov=obj.z'*obj.z/length(obj.z)-obj.sigmaEps;
                 
@@ -199,23 +206,57 @@ classdef DATA < matlab.mixin.Copyable
         end
         
         function obj = simulate(obj,model,mm)
+        % Simulates data from a MODEL
+        %
+        % Inputs:
+        %   model: MODEL object from which to simulate data
+        %   mm: Number of SNPs in simulated data
+        
+            % Calling simulate function from the MODEL class
             obj.beta = model.simulate(mm);
+            % Adding random noise
             obj.z = obj.beta + randn(mm,obj.noTraits)*chol(obj.sigmaEps);
             
         end
         
         function a = get.noTraits(obj)
+        % Function to calculate number of traits
+        %
+        % Outputs:
+        %   a: Number of traits
+        
             a = size(obj.z,2);
+            
         end
+        
         function a = get.noSNPs(obj)
+        % Function to calculate number of SNPs
+        %
+        % Outputs:
+        %   a: Number of SNPs
+        
             a = size(obj.z,1);
+            
         end
+        
         function a = get.noBlocks(obj)
+        % Function to calculate the number of jackknife blocks
+        %
+        % Outputs:
+        %   a: Number of jackknife blocks
+        
             a = length(obj.blocks);
+            
         end
         
         function a = get.cov(obj)
+        % Function to calculate the covariance matrix of the effect sizes
+        %
+        % Outputs:
+        %   a: Covariance matrix of the data without noise
+        
             a = cov(obj.z) - obj.sigmaEps;
+            
         end
     end
 end
