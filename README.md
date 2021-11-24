@@ -93,7 +93,7 @@ traits = {'T2D','BMI','TG'};
 subplot_traits = [1 2; 1 3; 2 3];
 included_cpts = [4,5];
 load('/path/to/1kg_LD.HM3.window1cm.noblocks.mat','LDSNPs','RRb');
-make_scatterplot(est,data,alpha,posterior_scalars,cptnames,traitnames,subplot_traits,included_cpts,LDSNPs,RRb)
+make_scatterplot(est,data,alpha,posterior_scalars,cptnames,traits,subplot_traits,included_cpts,LDSNPs,RRb)
 ```
 This will make a scatter plot for every pair of traits specified in each row of `subplot_traits`.
 
