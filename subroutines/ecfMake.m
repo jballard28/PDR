@@ -23,16 +23,6 @@ addParameter(p, 'noBlocks', 100);
 % value is too small, seems to produce miscalibrated p-values
 addParameter(p, 'tol', 0);
 
-% Model LD?
-addParameter(p, 'modelLD', 0);
-
-% Tolerance for LD eigenvalues
-addParameter(p, 'LDtol', 1);
-
-% Permute blocks to introduce independence?
-addParameter(p, 'permuted', 0);
-
-
 parse(p,data,times,varargin{:});
 
 % Identify which traits to use
@@ -67,44 +57,32 @@ end
 noiseVar=data.sigmaEps(traitIdx,traitIdx);
 
 Z = data.z;
-if p.Results.permuted
-    disp('Permuting jackknife blocks to destroy non-independence')
-    for ii=1:data.noTraits
-        perm = horzcat(data.blocks{randperm(noBlocks)});
-        Z(:,ii) = data.z(perm,ii);
-    end
-end
 
 ecf_fn=@(z,noiseScalars)mean(cos(z*times),1)-1;
 
 % ECF of each jackknife block
-if ~p.Results.modelLD
-    phiB=cellfun(@(i){ecf_fn(Z(i,traitIdx),1)},data.blocks);
-else
-    thresholdInverse = @(L)(L>p.Results.LDtol)./(L+(L<=p.Results.LDtol));
-    phiB=cellfun(@(i,U,S){ecf_fn(U*diag(thresholdInverse(S))*U'*data.z(i,traitIdx), diag(U*diag(thresholdInverse(S))*U'))},...
-        data.blocks, data.LDeigenvectors, data.LDeigenvalues);
-end
+phiB=cellfun(@(i){ecf_fn(Z(i,traitIdx),1)},data.blocks);
+
 phiB=vertcat(phiB{:})';
 
 if p.Results.tol > 0
-% normalize rows of phiB
-D=std(phiB,[],2);
-
-% Truncated-svd regularization
-[U,S,~]=svd((phiB-mean(phiB,2))./D,'econ');
-
-% Projection matrix whitens residuals + truncates small eigenvalues
-S=diag(S);
-incl=S > mean(S) * p.Results.tol;
-Sinv=diag(1./S(incl));
-
-P=Sinv*U(:,incl)'./D';
-
-fprintf('ECF contains %d combinations of sampling times\n',sum(incl))
-if sum(incl)<10
-    warning('Very few combinations of sampling times are retained; use more jackknife blocks or a smaller tolerance parameter')
-end
+    % normalize rows of phiB
+    D=std(phiB,[],2);
+    
+    % Truncated-svd regularization
+    [U,S,~]=svd((phiB-mean(phiB,2))./D,'econ');
+    
+    % Projection matrix whitens residuals + truncates small eigenvalues
+    S=diag(S);
+    incl=S > mean(S) * p.Results.tol;
+    Sinv=diag(1./S(incl));
+    
+    P=Sinv*U(:,incl)'./D';
+    
+    fprintf('ECF contains %d combinations of sampling times\n',sum(incl))
+    if sum(incl)<10
+        warning('Very few combinations of sampling times are retained; use more jackknife blocks or a smaller tolerance parameter')
+    end
 else
     P = eye(size(times,2));
 end

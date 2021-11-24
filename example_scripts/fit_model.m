@@ -39,7 +39,7 @@ for cc=1:no_r1
 end
 
 h2ConVal=[];
-est = MODEL(components, h2ConVal, model_additive_cpts);
+est = MODEL(components, model_additive_cpts);
 
 %% ECF
 samplingtimes=sqrt(1./scalars(2:end)); % Choosing sampling times based on the scalars

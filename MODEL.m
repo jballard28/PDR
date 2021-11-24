@@ -1,7 +1,6 @@
 classdef MODEL < handle
     properties
         cpts
-        conVal
         traits {iscell} % trait names
         prediction % vector of marginal effect size predictions
         additive_cpts
@@ -14,20 +13,15 @@ classdef MODEL < handle
         noTraits
         cov
         grad
-        pleioprop
-        pleioprop1
     end
     
     methods
-        function obj = MODEL(cpts,conVal,additive_cpts)
+        function obj = MODEL(cpts,additive_cpts)
             if nargin==0
                 return;
             end
             obj.cpts=cpts;
-            if nargin > 1
-                obj.conVal=conVal;
-            end
-            if nargin < 3
+            if nargin < 2
                 obj.additive_cpts = 1;
             else
                 obj.additive_cpts = additive_cpts;
@@ -238,7 +232,7 @@ classdef MODEL < handle
             else
                 xr=ecf.P * obj.cpts.phi(ecf);
                 beta = constrained_regression(xr, ecf.phiP,...
-                    ones(size(ecf.phiP)),nonneg_weights,[],[obj.cpts.A],obj.conVal);
+                    ones(size(ecf.phiP)),nonneg_weights,[],[obj.cpts.A],[]);
                 xbeta = 1 + obj.cpts.phi(ecf)*beta;
             end
             
@@ -511,14 +505,6 @@ classdef MODEL < handle
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
             addRequired(p, 'ecf', @(obj)isa(obj, 'ECF'));
-            
-            %             addParameter(p, 'nonneg', 1);
-            %             addParameter(p, 'replace', 0);
-            %             addParameter(p, 'getIR', 0);
-            %             addParameter(p, 'alpha_true', []);
-            %             addParameter(p, 'alpha_hat', []);
-            %             addParameter(p, 'data', []);
-            %             addParameter(p, 'marg', 0);
             addParameter(p, 'traitIdx', 1:obj.noTraits);
             addParameter(p, 'nrot', 1);
             addParameter(p, 'gdsteps', 1e3);
@@ -526,14 +512,6 @@ classdef MODEL < handle
             addParameter(p, 'tol', 0.005);
             parse(p,obj,ecf,varargin{:});
             
-            %             nonneg=p.Results.nonneg;
-            %             replace=p.Results.replace;
-            %             getIR=p.Results.getIR;
-            %             alpha_true=p.Results.alpha_true;
-            %             alpha_hat=p.Results.alpha_hat;
-            %             data=p.Results.data;
-            %             marg=p.Results.marg;
-            %             traitIdx=p.Results.traitIdx;
             nrot=p.Results.nrot;
             gdsteps=p.Results.gdsteps;
             whichCpts=p.Results.whichCpts;
@@ -542,12 +520,11 @@ classdef MODEL < handle
             pval_general_H1(obj.noCpts+1) = obj.test(ecf);
             
             % Whether to replace or remove uncorrelated components
-            IR = [];
             orig_cpts = copy(obj.cpts);
             for kk=whichCpts
                 nullcpts = copy(orig_cpts([1:kk-1, kk+1:end]));
                 
-                nullmodel = MODEL(nullcpts,obj.conVal,obj.additive_cpts);
+                nullmodel = MODEL(nullcpts,obj.additive_cpts);
                 
                 nullmodel.fit(ecf,'gdsteps',gdsteps);
                 for r = 1:nrot
@@ -773,95 +750,12 @@ classdef MODEL < handle
             sse = sum((alpha1-alpha2).^2);
         end
         
-        %%
-        % Function to compute improvement ratio (IR); model1 is the model for
-        % which better performance would mean IR is greater than 1
-        function [ir,alpha1,alpha2] = get_IR(model1,alpha_true,alpha_hat,varargin)
-            
-            p=inputParser;
-            
-            addRequired(p, 'model1', @(obj)isa(obj,'MODEL'));
-            addRequired(p, 'apha_true', @(obj)isa(obj,'float'));
-            addRequired(p, 'alpha_hat', @(obj)isa(obj,'float'));
-            
-            addParameter(p, 'model2', []);
-            addParameter(p, 'whichTrait', 1:model1.noTraits);
-            addParameter(p, 'data',[]);
-            
-            parse(p,model1,alpha_true,alpha_hat,varargin{:});
-            
-            model2=p.Results.model2;
-            whichTrait=p.Results.whichTrait;
-            data=p.Results.data;
-            
-            if isempty(model2)
-                % if model2 is passed in as [], IR will compute the
-                % comparison between the joint and marginal cases
-                if isempty(data)
-                    error('Must input data for joint v. marginal comparison');
-                end
-                alpha1 = model1.predict(data);
-                alpha2 = model1.predict(data,'marg',1);
-                
-            elseif isa(model2, 'MODEL')
-                if (isempty(model1.prediction) || isempty(model2.prediction))
-                    error('Must first run predict on input models for model1 v. model2 copmarison');
-                end
-                alpha1 = model1.prediction;
-                alpha2 = model2.prediction;
-                
-            else
-                error('Second argument must either be a model for comparison or [] (for joint vs. marginal comparison)');
-            end
-            
-            ir = IR(alpha_true,alpha_hat,alpha1,alpha2,whichTrait);
-            
-        end
-        
         % set obj.cpts.theta to specified values; also returns it
         function th = theta(obj,newTheta)
             if nargin > 1
                 obj.cpts.settheta(newTheta);
             end
             th = vertcat(obj.cpts.theta);
-            
-        end
-        
-        function [pval] = h2CI(obj,ecf,whichCpt,coverage)
-            if nargin < 3
-                whichCpt = 1:obj.noCpts;
-            end
-            if nargin < 4
-                coverage = .95; % 95pct CI
-            end
-            
-            nullCpts = copy(obj.cpts);
-            H0 = MODEL(nullCpts,obj.conVal,obj.additive_cpts);
-            
-            con_init = obj.conVal;
-            cov_init = cat(3,obj.cpts.cov);
-            for kk = whichCpt
-                h2Total = trace(cov_init(:,:,kk));
-                conVals = h2Total * [0:.5:2];
-                
-                v=zeros(obj.noTraits,1);
-                v(kk) = 1;
-                H0.cpts(kk).newCon(v);
-                
-                for jj = 1:numel(conVals)
-                    H0.conVal = [con_init; conVals(jj)];
-                    for rep = 1:3
-                        H0.rotateECF(ecf);
-                        H0.fit(ecf);
-                    end
-                    obj.fit(ecf);
-                    
-                    pval(jj,kk) = H0.test(obj,'ECF',ecf);
-                end
-                
-                H0.cpts(kk).delCon(obj.cpts(kk).noCons);
-            end
-            
             
         end
         
@@ -996,129 +890,6 @@ classdef MODEL < handle
             end
         end
         
-        
-        function plot_cumulative_h1_h2(obj,t1,t2,nsnps)
-            
-            if isempty(obj.traits)
-                error('Need to set traits field within the model');
-            end
-            
-            % Randomly choosing ingredient from which to draw effect sizes
-            W = obj.ww;
-            if ~all(W >= 0)
-                error('Weights should be nonnegative to plot cumulative h2');
-            end
-            if isempty(W)
-                error('need nonnegative weights to plot cumulative h2');
-            end
-            
-            W(W < 0) = 0;
-            comp_num = rand(1,nsnps)*sum(W);
-            
-            % Getting index of the mixture components from which each sample is to be drawn
-            comp_idcs = zeros(1,nsnps);
-            for i=1:nsnps
-                comp_idcs(i) = find(comp_num(i) < cumsum(W),1);
-            end
-            
-            % Creating cellarray of all sigma matrices
-            S = vertcat({obj.cpts.S});
-            sc = vertcat({obj.cpts.scalars});
-            idx = 1;
-            for i=1:length(S)
-                for j=1:length(sc{i})
-                    allS{idx} = S{i}*sc{i}(j);
-                    idx = idx + 1;
-                end
-            end
-            
-            % Generating trait 1 and trait 2 effect sizes from chosen mixture component
-            sample_alphas = zeros(nsnps,obj.noTraits);
-            for i=1:length(comp_idcs)
-                sample_alphas(i,:) = mvnrnd(zeros(1,obj.noTraits),allS{comp_idcs(i)},1);
-            end
-            
-            beta1=sample_alphas(:,t1);
-            beta2=sample_alphas(:,t2);
-            b_matrix = horzcat(beta1, beta2);
-            
-            % Sorting by beta1^2
-            [~, b21_idx] = sort(beta1.^2);
-            b_matrix1 = b_matrix(b21_idx,:);
-            
-            % Sorting by beta2^2
-            [~, b22_idx] = sort(beta2.^2);
-            b_matrix2 = b_matrix(b22_idx,:);
-            
-            % Getting values for 3 plots (4 curves)
-            x1=cumsum(b_matrix1(:,1).^2);
-            y1=cumsum(b_matrix1(:,2).^2);
-            
-            x1=x1/max(x1);
-            y1=y1/max(y1);
-            
-            x2=cumsum(b_matrix2(:,1).^2);
-            y2=cumsum(b_matrix2(:,2).^2);
-            
-            x2=x2/max(x2);
-            y2=y2/max(y2);
-            
-            x3=cumsum(b_matrix2(:,1).^2); % Same as x2
-            y3=cumsum(b_matrix2(:,1).*b_matrix2(:,2));
-            
-            x3=x3/max(x3);
-            y3=y3/sqrt(sum(b_matrix2(:,1).^2)*sum(b_matrix2(:,2).^2));
-            
-            x4=cumsum(b_matrix1(:,2).^2); % Same as y1
-            y4=cumsum(b_matrix1(:,1).*b_matrix1(:,2));
-            
-            x4=x4/max(x4);
-            y4=y4/sqrt(sum(b_matrix1(:,1).^2)*sum(b_matrix1(:,2).^2));
-            
-            namestr1 = split(obj.traits{1},'/');
-            namestr2 = split(obj.traits{2},'/');
-            tn1=namestr1{end};
-            tn2=namestr2{end};
-            tn1 = replace(tn1,'_',' ');
-            tn2 = replace(tn2,'_',' ');
-            
-            % Plot 1 (h2^2 vs. h1^2)
-            figure;
-            set(gcf,'Position', [616 96 558 922]);
-            fontsize=10;
-            subplot(3,1,1);
-            p1=plot(x1, y1, 'b');
-            hold on;
-            p2=plot(x2, y2, 'r');
-            hold on;
-            xlim([0 1]);
-            ylim([0 1]);
-            suptitle({tn1, tn2});
-            xl=xlabel(join(['Proportion of Cumulative Trait 1 h^2']), 'FontSize', fontsize);
-            yl=ylabel(join(['Proportion of Cumulative Trait 2 h^2']), 'FontSize', fontsize);
-            legend([p1, p2], {join(['Sort by \beta_1^2']), join(['Sort by \beta_2^2'])}, 'Location', 'northeastoutside',...
-                'FontSize', fontsize);
-            
-            % Plot 2 (cumulative covariance vs. h1^2)
-            subplot(3,1,2);
-            p3=plot(x3, y3);
-            xlim([0 1]);
-            hold on;
-            xl=xlabel(join(['Cumulative Trait 1 h^2']), 'FontSize', fontsize);
-            yl=ylabel(join(['Cumulative Covariance (\beta_{1}\beta_{2})']), 'FontSize', fontsize);
-            legend([p3], {join(['Sort by \beta_2^2'])}, 'Location', 'northwest', 'FontSize', fontsize);
-            
-            % Plot 3 (cumulative covariance vs. h2^2)
-            subplot(3,1,3);
-            p4=plot(x4, y4);
-            xlim([0 1]);
-            hold on;
-            xl=xlabel(join(['Cumulative Trait 2 h^2']), 'FontSize', fontsize);
-            yl=ylabel(join(['Cumulative Covariance (\beta_{1}\beta_{2})']), 'FontSize', fontsize);
-            legend([p4], {join(['Sort by \beta_1^2'])}, 'Location', 'northwest', 'FontSize', fontsize);
-            
-        end
-        
         % total covariance of model
         function a = get.cov(obj)
             a = sum(cat(3,obj.cpts.cov),3);
@@ -1139,36 +910,6 @@ classdef MODEL < handle
             if ~isempty(dCon)
                 a = a - (a/dCon)*dCon;
             end
-        end
-        
-        function a = get.pleioprop(obj)
-            
-            cptVar=zeros(obj.noTraits,1);
-            for kk = 1:obj.noCpts
-                cptVar(kk) = (obj.cpts(kk).scalars.^2 * obj.cpts(kk).ww ) - ...
-                    (obj.cpts(kk).scalars * obj.cpts(kk).ww )^2;
-            end
-            sigmasq_cov=zeros(obj.noTraits);
-            for t1=1:obj.noTraits
-                for t2=1:obj.noTraits
-                    for kk=1:obj.noCpts
-                        sigmasq_cov(t1,t2) = sigmasq_cov(t1,t2) + ...
-                            cptVar(kk) * obj.cpts(kk).S(t1,t1) * obj.cpts(kk).S(t2,t2);
-                    end
-                end
-            end
-            a = corrcov(sigmasq_cov);
-            
-        end
-        
-        function a = get.pleioprop1(obj)
-            numer=0;
-            for k=1:obj.noCpts
-                numer=numer+sqrt(obj.cpts(k).cov(1,1)*obj.cpts(k).cov(2,2));
-            end
-            denom=sqrt(prod(diag(obj.cov)));
-            a=numer/denom;
-            
         end
         
         function a = get.noTraits(obj)

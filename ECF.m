@@ -25,8 +25,7 @@ classdef ECF < matlab.mixin.Copyable
             
             % compute ecf of data and rotation matrix
             [obj.phiBlocks, obj.P, obj.sigmaEps, obj.T]=ecfMake(data,samplingtimes,varargin{:});
-            
-            
+
             %
             if ~isempty(data.traits)
                 obj.traits = data.traits;
