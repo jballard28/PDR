@@ -30,10 +30,10 @@ classdef DATA < matlab.mixin.Copyable
         %
         % Required Inputs:
         %   input: Can be either a MODEL object, a cell array of sumstats
-        %   file directories, or the name of the directory containing all
-        %   sumstats files to be loaded in. If input is a MODEL, this will
-        %   construct a DATA object containing data simulated from that
-        %   model
+        %       file directories, or the name of the directory containing all
+        %       sumstats files to be loaded in. If input is a MODEL, this will
+        %       construct a DATA object containing data simulated from that
+        %       model.
         %
         % Optional Inputs:
         %   mm: Number of NSPs

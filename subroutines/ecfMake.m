@@ -1,26 +1,36 @@
-function [phiB, P, noiseVarRemaining, times, whichTraits] = ecfMake(data,times,varargin)
-%ecfMake inputs GWAS summary statistics, sampling times, + LD information.
-%It outputs an ECF structure.
-%   Detailed explanation goes here
+function [phiB, P, noiseVarRemaining, times] = ecfMake(data,times,varargin)
+% ecfMake creates the fields needed for the ECF object by calculating
+%   sampling times, projection matrix, phi values, and projection matrix to
+%   prune highly correlated sampling times.
+%
+% Required Inputs:
+%   data: DATA object containing GWAS summary statistics
+%   times: Vector of sampling times
+%
+% Optional Inputs:
+%   whichTraits: Which traits from data to include. Can be vector of indices,
+%       or cell array of trait names. Order matters.
+%   maxNoSamplingtimes: Maximum number of sampling times
+%   noBlocks: Number of jackknife blocks
+%   tol: % Tolerance for projection matrix. If this value is too small,
+%       seems to produce miscalibrated p-values
+%
+% Outputs:
+%   phiB: phi values for each jackknife block and sampling time combination
+%   P: Projection matrix for pruning highly correlated sampling time
+%       combinations
+%   noiseVarRemaining: Covariance matrix of the noise in the data
+%   times: (# traits x # sampling time combinations) array of all sampling
+%       time combinations
 
 p=inputParser;
 
-% Sampling times
 addRequired(p, 'data', @(obj)isa(obj,'DATA'));
 addRequired(p, 'times', @ismatrix);
 
-% Which traits from data to include. Can be vector of indices, or cell
-% array of trait names. Order matters.
 addParameter(p, 'whichTraits', []);
-
-% Maximum number of sampling times
 addParameter(p, 'maxNoSamplingtimes', 1e3);
-
-% Number of jackknife blocks
 addParameter(p, 'noBlocks', 100);
-
-% Tolerance for projection matrix. If this
-% value is too small, seems to produce miscalibrated p-values
 addParameter(p, 'tol', 0);
 
 parse(p,data,times,varargin{:});
