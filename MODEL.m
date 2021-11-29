@@ -1,22 +1,31 @@
 classdef MODEL < handle
     properties
-        cpts
-        traits {iscell} % trait names
-        prediction % vector of marginal effect size predictions
-        additive_cpts
-        df
+        cpts % Array of COMPONENT objects corresponding to the components in the model
+        traits {iscell} % Trait names
+        additive_cpts % Whether to use additive components (allow SNPs to belong to more than one component) or not
+        df % Number of degrees of freedom in the model
     end
     
     properties (Dependent)
-        noCpts
-        noIngs
-        noTraits
-        cov
-        grad
+        noCpts % Number of components
+        noIngs % Number of ingredients (mixture gaussians within each component)
+        noTraits % Number of traits
+        cov % Genetic covariance matrix estimated by the model
+        grad % Gradient of the objective function under any constraints for each component
     end
     
     methods
         function obj = MODEL(cpts,additive_cpts)
+            % Class constructor
+            %
+            % Required Inputs:
+            % cpts: Array of COMPONENT objects to be used in the model
+            % additive_cpts: Indicator for whether to use additive components
+            %   (additive_cpts=1) or not (additive_cpts=0)
+            %
+            % Outputs:
+            %   obj: MODEL object
+            
             if nargin==0
                 return;
             end
@@ -29,8 +38,17 @@ classdef MODEL < handle
             obj.df = 0;
         end
         
-        %%  simulate
+        %% simulate
         function [beta, whichSNPs] = simulate(obj,mm)
+            % Function to simulate data from a MODEL object
+            %
+            % Inputs:
+            %   mm: Number of SNPs for which to simulate data
+            %
+            % Outputs:
+            %   beta: Simulated marginal effect sizes
+            %   whichSNPs: Cellarray of length # cpts indicating which SNPs
+            %       were drawn from that component
             
             cptWeight = cellfun(@sum,{obj.cpts.ww});
             if all(cptWeight == 0)
@@ -61,10 +79,27 @@ classdef MODEL < handle
             
         end
         
-        
         %% fit
-        % perform gradient descent to fit parameters of model
         function [rss_traj] = fit(obj,ecf,varargin)
+            % Function to perform gradient descent to fit the model parameters
+            %
+            % Required Inputs:
+            %   ecf: ECF object
+            %
+            % Optional Inputs:
+            %   convergence_param: Threshold for convergence (fractional change
+            %       in objective function value)
+            %   gdsteps: Max number of gradient descent steps
+            %   nonneg_weights: Whether to constrain the weights to be
+            %       nonnegative (does this by default)
+            %   stepsize_param: How much to scale step size in each iteration
+            %       of gradient descent
+            %   print_stuff: Whether to print the gradient descent step number
+            %
+            % Outputs:
+            %   rss_traj: Objective function values over last call to gradient
+            %       descent
+            
             obj.traits = ecf.traits;
             
             p=inputParser;
@@ -77,11 +112,14 @@ classdef MODEL < handle
             addParameter(p, 'nonneg_weights', 1);
             addParameter(p, 'stepsize_param', 1/2);
             addParameter(p, 'print_stuff', true);
+            
             parse(p,obj,ecf,varargin{:});
+            
             convergence_param=p.Results.convergence_param;
             gdsteps=p.Results.gdsteps;
             nonneg_weights=p.Results.nonneg_weights;
             stepsize_param = p.Results.stepsize_param;
+            
             if stepsize_param <= 0 || stepsize_param >= 1
                 error('stepsize_param should be in (0,1)')
             end
@@ -103,7 +141,6 @@ classdef MODEL < handle
             end
             counter=1;
             
-            %             rss_traj = zeros(gdsteps,1);
             rss_traj(1) = obj.rss(ecf);
             
             while converged<2
@@ -119,7 +156,6 @@ classdef MODEL < handle
                 end
                 
                 rssOld = obj.rss(ecf);
-                %gradOld=obj.grad;
                 thetaOld = obj.theta;
                 stepsize = stepsizeOld / stepsize_param;
                 
@@ -134,7 +170,6 @@ classdef MODEL < handle
                 
                 % only call project again after finding good stepsize
                 xbeta = obj.project(ecf,nonneg_weights);
-                %disp(rssOld - obj.rss(ecf))
                 % compute new gradient
                 dX=obj.cpts.gradCompute(ecf, xbeta);
                 
@@ -162,26 +197,41 @@ classdef MODEL < handle
         end
         
         %% project
-        % modelPhi is either a vector (mixture case) or a matrix (additive
-        % case) corresponding to the characteristic function of the model
-        % (mixture case) evaluated at ecf.T, or the characteristic function
-        % of each component (additive case).
-        % no_iter_project is number of iterations for iterative projection
-        % caluclation (OK if it doesn't go all the way to convergence
-        % within each step of gradient descent)
-        function xbeta = project(obj,ecf,nonneg_weights,sum_weights_one,no_iter_project)
+        function xbeta = project(obj,ecf,varargin)
+            % Function to calculate the regression weights
+            %
+            % Required Inputs:
+            %   ecf: ECF object
+            %
+            % Optional Inputs:
+            %   nonneg_weights: Whether to constrain weights to be nonnegative
+            %   sum_weights_one: Whether to constrain weights to sum to 1
+            %   no_iter_project: Number of iterations for iterative
+            %       projection calculation (OK if it doesn't go all the way
+            %       to convergence within each step of gradient descent)
+            %
+            % Outputs:
+            %   xbeta: Fitted component weights multiplied by the
+            %       characteristic functions of the components evaluated
+            %       at each sampling time (# samplingtimes x 1)
+            
+            p=inputParser;
+            
+            addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
+            addRequired(p, 'ecf', @(obj)isa(obj,'ECF'));
+            
+            addParameter(p, 'nonneg_weights', 1);
+            addParameter(p, 'sum_weights_one', 1);
+            addParameter(p, 'no_iter_project', 5);
+            
+            parse(p,obj,ecf,varargin{:});
+            nonneg_weights=p.Results.nonneg_weights;
+            sum_weights_one=p.Results.sum_weights_one;
+            no_iter_project=p.Results.no_iter_project;
+            
             warning('off','MATLAB:singularMatrix')
             warning('off','MATLAB:illConditionedMatrix')
             warning('off','MATLAB:rankDeficientMatrix')
-            if nargin<3
-                nonneg_weights = 1;
-            end
-            if nargin < 4
-                sum_weights_one = 1;
-            end
-            if nargin < 5
-                no_iter_project = 5;
-            end
             
             % additive model
             if obj.additive_cpts
@@ -214,7 +264,6 @@ classdef MODEL < handle
                             AA = [];
                             conval = [];
                         end
-                        %current_err = sum((ecf.phiP + 1 - ecf.P * yhat).^2);
                         yhat = yhat ./ (xc{cc} * beta{cc} + 1 );
                         beta{cc} = constrained_regression(...
                             ecf.P * (xc{cc} .* yhat) , ...
@@ -255,33 +304,58 @@ classdef MODEL < handle
         end
         
         %% initialize_fit
-        % Function to iterate through different initializations of theta
-        % and call fit - has different ways of initializing theta,
-        % including starting at the initial value of theta (can set it to
-        % be the true theta for simulations), randomized theta, a mixture
-        % of true and random initializations, and initializations near the
-        % true theta
         function [rss_traj,inittime,gdtime] = initialize_fit(obj, ecf, varargin)
+        % Function to iterate through different initializations of theta
+        %   and call fit - has different ways of initializing theta,
+        %   including starting at the initial value of theta (can set it to
+        %   be the true theta for simulations), randomized theta, a mixture
+        %   of true and random initializations, and initializations near the
+        %   true theta
+        %
+        % Required Inputs:
+        %   ecf: ECF object
+        %
+        % Optional Inputs:
+        %   niter: Number of initializations of gradient descent
+        %   nrot: Max number of rotations
+        %   gdsteps: Max number of gradient descent steps
+        %   init_gdsteps: Max number of gradient descent steps during initialization
+        %   nonneg: Constrain model to have nonnegative weights
+        %   method: Initialization method
+        %   max_offset: Goes with method "near_orig"; how close to initial param values to initialize
+        %   fix_cpt: Indices of components for which to fix the params at their initial value
+        %   dampening_factor: Dampens changes in estimated residuals-covariance matrix to improve convergence
+        %   orig_subset: Goes with method "orig_subset"; indices of cpts to fix params at initial value; all other cpts are randomized
+        %   datacov: Covariance matrix used with 'covmat' or 'orig_rand' initialization method
+        %   nsamples: Goes with datacov option + 'covmat' or 'orig_rand' for how many times to sample from distribution with user-specified covariance matrix
+        %   convergence_param: Threshold for convergence
+        %   rotation_tolerance: ECF rotation parameter
+        %   print_stuff: Whether to print gradient descent steps
+        %
+        % Outputs:
+        %   rss_traj: Objective function values in last performance of gradient descent
+        %   inittime: Time it takes to run the initialization procedure
+        %   gdtime: Time it takes to run the gradient descent/fit procedure
             
             p=inputParser;
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
             addRequired(p, 'ecf', @(obj)isa(obj, 'ECF'));
             
-            addParameter(p, 'niter', 100); % number of initializations of gradient descent
-            addParameter(p, 'nrot', 5); % Max number of rotations
-            addParameter(p, 'gdsteps', 100); % Max number of gradient descent steps
-            addParameter(p, 'init_gdsteps', 3); % Max number of gradient descent steps during initialization
-            addParameter(p, 'nonneg', 1');% Constrain model to have nonnegative weights
-            addParameter(p, 'method', 'covmat'); % Initialization method
-            addParameter(p, 'max_offset', 1); % goes with method "near_orig"; how close to initial param values to initialize
-            addParameter(p, 'fix_cpt', []);% indices of components for which to fix the params at their initial value
-            addParameter(p, 'dampening_factor', 0);% Dampens changes in estimated residuals-covariance matrix to improve convergence
-            addParameter(p, 'orig_subset', []);% goes with method "orig_subset"; indices of cpts to fix params at initial value; all other cpts are randomized
-            addParameter(p, 'datacov', []);% covariance matrix used with 'covmat' initialization method
-            addParameter(p, 'nsamples', []);% goes with datacov option + 'covmat'
-            addParameter(p, 'convergence_param', 1e-6);% threshold for convergence
-            addParameter(p, 'rotation_tolerance', 1e-2); % ECF rotation parameter
+            addParameter(p, 'niter', 100);
+            addParameter(p, 'nrot', 5);
+            addParameter(p, 'gdsteps', 100);
+            addParameter(p, 'init_gdsteps', 3);
+            addParameter(p, 'nonneg', 1');
+            addParameter(p, 'method', 'covmat');
+            addParameter(p, 'max_offset', 1);
+            addParameter(p, 'fix_cpt', []);
+            addParameter(p, 'dampening_factor', 0);
+            addParameter(p, 'orig_subset', []);
+            addParameter(p, 'datacov', []);
+            addParameter(p, 'nsamples', []);
+            addParameter(p, 'convergence_param', 1e-6);
+            addParameter(p, 'rotation_tolerance', 1e-2);
             addParameter(p, 'print_stuff', true);
             
             parse(p,obj,ecf,varargin{:});
@@ -313,7 +387,6 @@ classdef MODEL < handle
             
             tic;
             for i=1:niter
-                % To do: rewrite long if-else
                 switch method
                     case "orig"
                         % Initialize theta to its initial value
@@ -426,22 +499,29 @@ classdef MODEL < handle
         end
         
         %% rotateECF
-        % Computes new rotation/projection (ecf.P) based on the model
-        function [phi, phicombos, cpt_phi] = rotateECF(obj, ecf, varargin)
+        function rotateECF(obj, ecf, varargin)
+        % Function to compute new rotation/projection (ecf.P) based on the model
+        %
+        % Required Inputs:
+        %   ecf: ECF object
+        %
+        % Optional Inputs:
+        %   tol: Tolerance parameter for which sampling times to retain
+        %   dampening_factor: Parameter for dampening oscillations in final estimates
+        
             p=inputParser;
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
             addRequired(p, 'ecf', @(obj)isa(obj, 'ECF'));
             
             addParameter(p, 'tol', 0);
-            addParameter(p, 'fudge_factor', 0);
             addParameter(p, 'dampening_factor', 0.5);
             
             parse(p,obj,ecf,varargin{:});
             
             tol=p.Results.tol;
-            fudge_factor=p.Results.fudge_factor;
             dampening_factor=p.Results.dampening_factor;
+            
             % pairwise sums + differences of sampling times
             Tsums = zeros(obj.noTraits,ecf.noT*(ecf.noT+1)/2);
             Tdiffs = zeros(obj.noTraits,ecf.noT*(ecf.noT+1)/2);
@@ -452,7 +532,7 @@ classdef MODEL < handle
             
             % phi(t1+t2) + phi(t1-t2)
             
-            sigmaEps = ecf.sigmaEps + fudge_factor*eye(length(ecf.sigmaEps));
+            sigmaEps = ecf.sigmaEps;
             
             if obj.additive_cpts
                 phicombos =  ones(size(Tsums,2),1);
@@ -495,21 +575,37 @@ classdef MODEL < handle
         end
         
         %% test_cpts
-        % Function to test the significance of each component by removing
-        % it, or replacing uncorrelated components with trait_specific;
-        % also tests the significance of the nullmodels against any other
-        % model
         function [pval, pval_general_H1] = test_cpts(obj, ecf, varargin)
+        % Function to test the significance of each component by removing
+        %   it, or replacing uncorrelated components with trait_specific;
+        %   also tests the significance of the nullmodels against any other
+        %   model
+        %
+        % Required Inputs:
+        %   ecf: ECF object
+        %
+        % Optional Inputs:
+        %   nrot: Number of ECF rotations to perform
+        %   gdsteps: Max number of gradient descent steps to use
+        %   whichCpts: Which components to test
+        %   tol: Tolerance for call to rotateECF: threshold for which sampling times to
+        %       retain
+        %
+        % Outputs:
+        %   pval: P-values for comparing a model with and without a given component
+        %   pval_general_H1: P-values for comparing a model without a
+        %       component to a general larger model
             
             p=inputParser;
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
             addRequired(p, 'ecf', @(obj)isa(obj, 'ECF'));
-            addParameter(p, 'traitIdx', 1:obj.noTraits);
+            
             addParameter(p, 'nrot', 1);
             addParameter(p, 'gdsteps', 1e3);
             addParameter(p, 'whichCpts', 1:obj.noTraits);
             addParameter(p, 'tol', 0.005);
+            
             parse(p,obj,ecf,varargin{:});
             
             nrot=p.Results.nrot;
@@ -545,11 +641,24 @@ classdef MODEL < handle
             
         end
         
-        %%
-        % test model as null vs some alternative: either another model, or
-        % an ecf object
+        %% test
         function [pval, Fstat, convergence_tol] = test(H0,input,varargin)
-            
+        % Function to test model as null vs some alternative: either another model, or
+        %   an ecf object
+        %
+        % Required Inputs:
+        %   H0: Object that test is getting called on: should be the null (smaller) model
+        %   input: Either an alternative model or the ECF (for getting a
+        %       p-value against any general larger model)
+        %
+        % Optional Inputs:
+        %   ecf: For use when 'input' is a MODEL object. ecf should be the
+        %       ECF object used when fitting the null model (H0)
+        %
+        % Outputs:
+        %   pval: P-value from hypothesis testing
+        %   Fstat: F statistic
+        
             p=inputParser;
             
             addRequired(p, 'H0', @(obj)isa(obj,'MODEL'));
@@ -616,28 +725,38 @@ classdef MODEL < handle
                 error('Input to MODEL.test should be either a MODEL or an ECF')
             end
             
-            convergence_tol=0.1*finv(.001,H1_df-H0.df,noData-H1_df)*(H1_df-H0.df)/(noData-H1_df);
         end
         
-        %%
-        % Calculate expected value of marginal effect sizes
-        % Outputs:
-        % - alpha: predicted effect sizes
-        % - MAP_scalars: scalars of the components based on MAP ingredient assignment
-        % - posterior_scalars: posterior variance calculated from the
-        %     posterior likelihood
+        %% predict
         function [alpha, MAP_scalars, posterior_scalars] = predict(obj,data,varargin)
+        % Function to calculate expected value of marginal effect sizes
+        %
+        % Required Inputs:
+        %   data: DATA object
+        %
+        % Optional Inputs:
+        %   traitIdx: Traits for which to predict effect sizes
+        %   whichSNPs: SNPs for which to predict effect sizes
+        %   marg: If 1, generate predictions based on each trait's univariate distribution
+        %   minWeight: Weight product threshold to select ingredient combinations
+        %   sigma_extra: Amount of noise to transfer from noisevar to the covariance matrix
+        %
+        % Outputs:
+        %   alpha: posterior mean effect sizes
+        %   MAP_scalars: scalars of the components based on MAP ingredient assignment
+        %   posterior_scalars: posterior variance calculated from the
+        %     posterior likelihood
             
             p=inputParser;
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
             addRequired(p, 'data', @(obj)isa(obj, 'DATA'));
             
-            addParameter(p, 'traitIdx', 1:data.noTraits); % traits to predict effect sizes for
-            addParameter(p, 'whichSNPs', 1:data.noSNPs); % SNPs to predict effect sizes for
-            addParameter(p, 'marg', 0); % if 1, generate predictions based on each trait's univariate distribution
-            addParameter(p, 'minWeight', 0); % weight product threshold to select ingredient combinations
-            addParameter(p, 'sigma_extra', zeros(data.noTraits)); % amount of noise to transfer from noisevar to the covariance matrix
+            addParameter(p, 'traitIdx', 1:data.noTraits);
+            addParameter(p, 'whichSNPs', 1:data.noSNPs);
+            addParameter(p, 'marg', 0);
+            addParameter(p, 'minWeight', 0);
+            addParameter(p, 'sigma_extra', zeros(data.noTraits));
             
             parse(p,obj,data,varargin{:});
             
@@ -672,7 +791,6 @@ classdef MODEL < handle
             cpt_sigma = {obj.cpts.S};
             cpt_scalars = {obj.cpts.scalars};
             
-            %             posterior_likelihood = zeros(size(x,1),length(indArray));
             max_pl = ones(size(x,1),1)*-Inf;
             indMax = ones(size(x,1),1)*-Inf;
             for ii = 1:length(indArray)
@@ -711,7 +829,6 @@ classdef MODEL < handle
                 
                 
             end
-            %             [~, indMax ] = max(posterior_likelihood');
             MAP_assignment = indArray(indMax,:);
             for cpt = 1:obj.noCpts
                 MAP_scalars(:,cpt) = obj.cpts(cpt).scalars(MAP_assignment(:,cpt));
@@ -734,24 +851,20 @@ classdef MODEL < handle
                     obj.cpts(ii).scalars';
             end
             
-            obj.prediction = xpm ./ likelihood;
-            alpha=obj.prediction;
+            alpha = xpm ./ likelihood;
             
         end
         
-        % Function to compute SSE; if a data object is input, it also
-        % computes the predictions, otherwise a second set of effect sizes
-        % needs to be provided
-        function sse = sse(obj, alpha1, alpha2)
-            if nargin < 3
-                alpha2 = obj.prediction;
-            end
-            
-            sse = sum((alpha1-alpha2).^2);
-        end
-        
-        % set obj.cpts.theta to specified values; also returns it
+
         function th = theta(obj,newTheta)
+        % Function to set obj.cpts.theta to specified values
+        %
+        % Inputs:
+        %   newTheta: Values to set as new theta values
+        %
+        % Outputs:
+        %   th: New theta values for all components
+        
             if nargin > 1
                 obj.cpts.settheta(newTheta);
             end
@@ -759,8 +872,16 @@ classdef MODEL < handle
             
         end
         
-        % set obj.cpts.ww to specified values; also returns it
+
         function w = ww(obj,newWw)
+        % Function to set obj.cpts.ww to specified values
+        %
+        % Inputs:
+        %   newWW: Values to set as new weights
+        %
+        % Outputs:
+        %   w: New weights for all components
+        
             if nargin > 1
                 obj.cpts.setww(newWw);
             end
@@ -768,8 +889,18 @@ classdef MODEL < handle
             
         end
         
-        % function to get rss
         function rss = rss(obj, ecf, useBlocks)
+        % Function to get rss
+        %
+        % Required Inputs:
+        %   ecf: ECF object
+        %
+        % Optional Inputs:
+        %   useBlocks: Whether to use jackknife blocks when calculating RSS
+        %
+        % Outputs:
+        %   rss: Objective function value (RSS)
+        
             if nargin < 3
                 useBlocks = 0;
             end
@@ -796,6 +927,20 @@ classdef MODEL < handle
         end
         
         function h = heatmap(obj,cpt,tnames,titles,plot,cmap)
+        % Function to plot a heatmap of a given component
+        %
+        % Required Inputs:
+        %   cpt: Which component to plot a heat map for
+        %   tnames: Trait names
+        %   titles: Title of heat map
+        %
+        % Optional Inputs:
+        %   plot: Whether to plot the heatmap
+        %   cmap: Whether to plot a colorbar
+        %
+        % Outputs:
+        %   h: Normalized component covariance matrix
+        
             if nargin < 5
                 plot = 1;
                 cmap = 1;
@@ -820,6 +965,18 @@ classdef MODEL < handle
         end
         
         function [ax] = h2plot(obj,varargin)
+        % Function to plot the heatmaps of variance explained for each
+        %   component on each trait (as seen in main figures of our manuscript)
+        %
+        % Optional Inputs:
+        %   traitNames: Trait names (order matters)
+        %   whichCpts: Which components to plot
+        %   cptNames: Component names (order matters)
+        %   whichTraits: Which traits to plot
+        %
+        % Outputs:
+        %   ax: Axis object used in the plot
+        
             p=inputParser;
             
             addRequired(p, 'obj', @(obj)isa(obj,'MODEL'));
@@ -852,6 +1009,15 @@ classdef MODEL < handle
         end
         
         function [tables,fields] = print_cpt_data(obj)
+        % Function to print out the data for each component of a model.
+        %   Prints cpt params (theta), weights (ww), covariance matrices (cov),
+        %   and pattern matrices (s)
+        %
+        % Output:
+        %   tables: Cellarray of tables for each field containing the
+        %       values for each component
+        %   fields: Names of variables output (theta, ww, cov, s)
+        
             fields = ["theta","ww","cov","s"];
             for ii = 1:length(fields)
                 varNames = arrayfun(@(x)join(['cpt',num2str(x)]),1:obj.noCpts,'UniformOutput',false);
@@ -890,20 +1056,44 @@ classdef MODEL < handle
             end
         end
         
-        % total covariance of model
         function a = get.cov(obj)
+        % Function to get the total covariance of the model
+        %
+        % Output:
+        %   a: Total covariance matrix across all components
+        
             a = sum(cat(3,obj.cpts.cov),3);
+        
         end
         
         function a = get.noCpts(obj)
+        % Function to get the number of components
+        %
+        % Outputs:
+        %   a: Number of components in the model
+        
             a = numel(obj.cpts);
+        
         end
+        
         function a = get.noIngs(obj)
+        % Function to get the number of ingredients (number of mixture Gaussians
+        %   within each component)
+        %
+        % Outputs:
+        %   a: Number of ingredients
+        
             a = sum([obj.cpts.noIngs]);
+        
         end
-        % calculate gradient of each component and project onto tangent
-        % space of constraint level sets
+        
         function a = get.grad(obj)
+        % Function to calculate gradient of each component and project onto tangent
+        %   space of constraint level sets
+        %
+        % Outputs:
+        %   a: Gradient of each component given any constraints
+        
             a = horzcat(obj.cpts.grad);
             dCon = horzcat(obj.cpts.dA);
             % residualize gradient on the gradient of the constraints
@@ -913,6 +1103,11 @@ classdef MODEL < handle
         end
         
         function a = get.noTraits(obj)
+        % Function to get the number of traits
+        %
+        % Outputs:
+        %   a: Number of traits
+        
             if obj.noCpts > 0
                 nT=[obj.cpts.noTraits];
                 a = nT(1);
@@ -920,6 +1115,7 @@ classdef MODEL < handle
                     error('All components should have the same number of traits')
                 end
             end
+            
         end
     end
 end
