@@ -5,10 +5,10 @@ classdef COMPONENT < matlab.mixin.Copyable
         name % name of component (just for convenience)
         ww % weight of each ingredient
         thetaCon % upper and lower bounds on theta
-        noTraits
-        grad
-        conType
-        fixedParam
+        noTraits % number of traits
+        grad % gradient of the objective function
+        conType % constraint type ('none' or 'diagonal' - see h2ConOpt below)
+        fixedParam % parameter (different from theta) that isn't learned
     end
     
     properties (Dependent)
@@ -16,7 +16,7 @@ classdef COMPONENT < matlab.mixin.Copyable
         dA % gradient of A
         noIngs % length(scalars)
         noCons % number of coefficient constraints
-        noParams
+        noParams % number of parameters
         cov % S*dot(scalars,ww)
         S % covariance matrix of the component
     end
@@ -24,60 +24,53 @@ classdef COMPONENT < matlab.mixin.Copyable
     properties (Access = private)
         cptfn % used to compute gradients
         vCon % used to compute constraint coefficients
-        type
+        type % component type - used to determine which component functions to use
     end
     
     properties (Dependent, Access = private)
-        F
-        dF
+        F % component function
+        dF % derivative of component function
     end
     
     methods
         function obj = COMPONENT(type,no_traits,scalars,fixedParam,varargin)
+        % Class constructor
+        %
+        % Required Inputs:
+        %   type: Which type of component (member of cpts folder)('full_rank','rank_one','fixed')
+        %   no_traits: Number of traits
+        %   scalars: Scalars, one per ingredient
+        %   fixedParam: Parameter (different from theta) that isn't learned
+        %
+        % Optional Inputs:
+        %   theta: Parameters; if unspecified, these are randomly initialized
+        %   ww: Weight of each ingredient
+        %   name: Name of component (just for convenience)
+        %   h2ConOpt: option to generate heritability constraints. Options allowed:
+        %       'none' (no constraint), 'diagonal' (constrain h2, but not
+        %       genetic correlation)
+        %
+        % Outputs:
+        %   obj: COMPONENT object
+        
             if nargin==0
                 return;
             end
             p=inputParser;
             
-            % which type of component (member of cpts folder)
             addRequired(p, 'type', @isstr);
-            
-            % scalars, one per ingredient
             addRequired(p, 'no_traits', @(x)isnumeric(x) & isscalar(x));
-            
-            % scalars, one per ingredient
             addRequired(p, 'scalars', @(x)isnumeric(x) & isvector(x) & size(x,1)==1);
-            
-            % parameter (different from theta) that isn't learned
             addRequired(p, 'fixedParam', @(x)true)
             
-            % parameters; if unspecified, these are randomly initialized
             [~, ~, randomParams, obj.thetaCon] = component_function(type,no_traits,fixedParam,1);
             
             addOptional(p, 'theta', randomParams, ...
                 @(x)isnumeric(x) & all(size(x)==size(randomParams)));
-            
-            % weight of each ingredient
             addOptional(p, 'ww', zeros(size(scalars))', ...
                 @(x)isnumeric(x) & size(x,1) == size(scalars,2));
-            
-            
-            % name of component (just for convenience)
             addOptional(p, 'name', type, @isstr)
-            
-            % option to generate heritability constraints. Options allowed:
-            % 'none' (no constraint), 'diagonal' (constrain h2, but not
-            % genetic correlation), 'full' (constrain h2 + rg)
             addOptional(p, 'h2ConOpt', 'none', @isstr)
-            
-            
-            % custom constraints that can be used to constrain how much
-            % heritability/genetic covariance is explained by different
-            % components. First two columns (interchangeable) are indices
-            % of a trait pair (entry of gencov matrix), with duplicates
-            % allowed; third column is a coefficient.
-            % Not yet implemented.
-            %addOptional(p, 'customCon', zeros(0,3), @(x)size(x,2)==3)
             
             parse(p,type,no_traits,scalars,randomParams,varargin{:});
             
@@ -92,20 +85,17 @@ classdef COMPONENT < matlab.mixin.Copyable
             obj.cptfn = @(th)component_function(type, no_traits, fixedParam, th);
             
             % constraint function of component
-            i=strcmp(p.Results.h2ConOpt,{'none','diagonal','full'});
+            i=strcmp(p.Results.h2ConOpt,{'none','diagonal'});
             
             if i(1)
                 obj.vCon=zeros(no_traits,0);
             elseif i(2)
                 obj.vCon=eye(no_traits);
-            elseif i(3)
-                error('Not yet implemented')
             else
-                error('h2ConOpt must be either none, diagonal, or full')
+                error('h2ConOpt must be either none or diagonal')
             end
             
-            %obj.Afn = @(S)[ones(no_traits,1).*p.Results.weightSum, S.*p.Results.h2sum];
-            
+            obj.vCon=zeros(no_traits,0);
             obj.scalars = scalars;
             obj.ww = p.Results.ww;
             obj.name = p.Results.name;
@@ -113,18 +103,29 @@ classdef COMPONENT < matlab.mixin.Copyable
         end
         
         function newCon(obj,v)
+        % Function to add a constraint
             obj.vCon = [obj.vCon;v];
         end
         
         function delCon(obj,kk)
+        % Function to delete a constraint
+        %
+        % Optional Inputs:
+        %   kk: Index of constraint to delete; otherwise deletes all
+        %       constraints
+        
             if nargin < 1
                 kk = 1:obj.noCons;
             end
             obj.vCon = obj.vCon(setdiff(1:end,kk),:);
         end
         
-        % set theta to a new value while respecting parameter constraints
         function settheta(obj,thetaNew)
+        % Function to set theta to a new value while respecting parameter constraints
+        %
+        % Inputs:
+        %   thetaNew: New theta values
+        
             counter=0;
             if numel(thetaNew)~=length(vertcat(obj.theta))
                 error('new theta has wrong length for assignment')
@@ -140,8 +141,20 @@ classdef COMPONENT < matlab.mixin.Copyable
             end
         end
         
-        % evaluates the gradient of the RSS wrt theta
         function dX = gradCompute(obj,ecf,xbeta,additive_cpts)
+        % Function to evaluate the gradient of the RSS wrt theta
+        %
+        % Required Inputs:
+        %   ecf: ECF object
+        %   xbeta: Regression weights multiplied by characteristic function
+        %       values
+        %
+        % Optional Inputs:
+        %   additive_cpts: Whether additive components are being used
+        %
+        % Outputs:
+        %   dX: Gradient of the objective function wrt theta
+        
             if nargin < 4
                 additive_cpts = size(xbeta,2) > 1;
             end
@@ -182,8 +195,6 @@ classdef COMPONENT < matlab.mixin.Copyable
                     dX = dX .* noisefactor;
                 end
                 
-                % 
-                
                 % multiply gradient by projection matrix
                 dX = ecf.P * dX;
                 
@@ -192,8 +203,9 @@ classdef COMPONENT < matlab.mixin.Copyable
             end
         end
         
-        
         function randomize(obj)
+        % Function to randomize the parameters of the component
+        
             for i=1:numel(obj)
                 [~, ~, randomParams] = component_function(obj(i).type,obj(i).noTraits,obj(i).fixedParam);
                 obj(i).settheta(randomParams);
@@ -201,6 +213,14 @@ classdef COMPONENT < matlab.mixin.Copyable
         end
         
         function b=simulate(obj,mm)
+        % Function to simulate from a component
+        %
+        % Inputs:
+        %   mm: Number of SNPs
+        %
+        % Outputs:
+        %   b: Vector of effect sizes simulated from the component
+        
             if numel(obj) ~= 1
                 error('simulate method does not support nonscalar objects')
             end
@@ -230,15 +250,23 @@ classdef COMPONENT < matlab.mixin.Copyable
             
         end
         
-        % take a step down the gradient (supports nonscalar objects)
         function step(obj, stepsize)
+        % Function to take a step down the gradient (supports nonscalar objects)
+        %
+        % Inputs:
+        %   stepsize: Size of the step to take down the gradient
+        
             for i = 1:numel(obj)
                 obj(i).settheta(obj(i).theta - stepsize * obj(i).grad');
             end
         end
         
-        % set ww to a new value (supports nonscalar objects)
         function setww(obj, wwNew)
+        % Function to set ww to a new value (supports nonscalar objects)
+        %
+        % Inputs:
+        %   wwNew: Values to set as new weights
+        
             if numel(wwNew) ~= sum([obj.noIngs])
                 error('New weights vector has the wrong size')
             end
@@ -251,6 +279,16 @@ classdef COMPONENT < matlab.mixin.Copyable
         end
         
         function a = phi(obj,input,noisevar)
+        % Function to calculate the characteristic function value at
+        %   specified sampling times
+        %
+        % Inputs:
+        %   input: Either an ECF object or vector of sampling times
+        %
+        % Outputs:
+        %   a: Objective function value at each of the sampling times for
+        %       each mixture Gaussian (corresponding to a given scalar)
+        
             if isa(input,'ECF')
                 samplingTimes = input.T;
                 if nargin < 3
@@ -270,72 +308,64 @@ classdef COMPONENT < matlab.mixin.Copyable
                 + sum( samplingTimes.*(noisevar * samplingTimes), 1 )' ) ) - 1); % like t'*sEps*t
         end
         
-        % Calculate the mean of the posterior for a given ingredient
-        % E(alpha|alpha_hat,G=g)
-        function mean_posterior = mean_posterior(obj,x,sigmaEps,ing,traitIdx,marg)
-            
-            if ~marg
-                det_thresh = 1e-14;
-                s = obj.S*obj.scalars(ing);
-                if (abs(det(s)) <= det_thresh)
-                    scale = 1e-12;
-                    s = s + eye(obj.noTraits)*scale;
-                end
-                
-                temp = inv(s)+inv(sigmaEps);
-                f=@(x)(temp\(sigmaEps\x))';
-                a=cellfun(f,num2cell(x',1),'UniformOutput',false);
-                mean_posterior = vertcat(a{:});
-                
-            else
-                % For a given ingredient
-                mean_posterior = zeros(size(x));
-                for i=1:length(traitIdx)
-                    s = obj.S*obj.scalars(ing);
-                    t = traitIdx(i);
-                    mean_posterior(:,i) = (1/( 1/s(t,t) + 1./sigmaEps(t,t) )).*(x(:,i)./sigmaEps(t,t));
-                end
-            end
-            
-        end
-        
-        % Calculate the p(alpha_hat|G=g)*p(G=g)
-        function p_alpha_hat = p_alpha_hat(obj,x,sigmaEps,ing,traitIdx,marg)
-            
-            if ~marg
-                p_alpha_hat = mvnpdf(x,zeros(size(x)),obj.S*obj.scalars(ing)+sigmaEps)*obj.ww(ing);
-            else
-                p_alpha_hat = zeros(size(x));
-                for i=1:length(traitIdx)
-                    t = traitIdx(i);
-                    s = obj.S*obj.scalars(ing)+sigmaEps;
-                    p_alpha_hat(:,i) = normpdf(x(:,i),0,sqrt(s(t,t)))*obj.ww(ing);
-                end
-            end
-            
-        end
-        
         function a = get.F(obj)
+        % Get the function for the component
+        %
+        % Outputs:
+        %   a: Component function
+        
             [a, ~] = obj.cptfn(obj.theta);
+            
         end
         
         function a = get.dF(obj)
+        % Function to get the derivative of the component function wrt
+        %   theta
+        %
+        % Outputs:
+        %   a: Derivative of the component function wrt theta
+        
             [~, a] = obj.cptfn(obj.theta);
+            
         end
         
         function a = get.noParams(obj)
+        % Function to get the number of parameters in a component
+        %
+        % Outputs:
+        %   a: Number of parameters
+        
             a = numel(obj.theta);
+            
         end
         
         function a = get.noCons(obj)
+        % Function to get the number of constraints in the component
+        %
+        % Outputs:
+        %   a: Number of constraints
+        
             a = size(obj.vCon,2);
+            
         end
         
         function c = get.cov(obj)
+        % Function to get the covariance matrix for a component
+        %
+        % Outputs:
+        %   cov: Component covariance matrix (pattern matrix multiplied by
+        %       expected scaling parameter)
+        
             c = obj.S * (obj.scalars * obj.ww);
+            
         end
         
         function s = get.S(obj)
+        % Function to get the pattern matrix for the component
+        %
+        % Outputs:
+        %   s: Component pattern matrix
+        
             [i,j]=find(triu(ones(obj.noTraits)));
             x2=zeros(obj.noTraits,length(i));
             x2(i' + (0:length(i)-1)*obj.noTraits)=1;
@@ -346,26 +376,46 @@ classdef COMPONENT < matlab.mixin.Copyable
             s = 1/2 * (obj.F(x2) - b(i) - b(j));
             s = triuind(s);
             s = s + s' - diag(diag(s)); % symmetricize
+            
         end
         
         function a = get.A(obj)
+        % Function to get the matrix of constraint values
+        %
+        % Outputs:
+        %   a: Constraint values
+        
             if ~isempty(obj.vCon)
                 a = obj.scalars.*obj.F(obj.vCon);
             else
                 a = [];
             end
+            
         end
         
         function a = get.dA(obj)
+        % Function to get the gradient of A
+        %
+        % Outputs:
+        %   a: Gradient of A
+        
             if ~isempty(obj.vCon)
                 a = (obj.scalars*obj.ww)*obj.dF(obj.vCon);
             else
                 a = [];
             end
+            
         end
         
         function a = get.noIngs(obj)
+        % Function to get the number of ingredients (number of mixture
+        %   Gaussians within the component)
+        %
+        % Outputs:
+        %   a: Number of ingredients in the component
+        
             a = numel([obj.scalars]);
+            
         end
         
     end
