@@ -125,11 +125,11 @@ classdef MODEL < handle
             end
             
             if numel(obj.theta) == 0
-                obj.project(ecf,nonneg_weights);
+                obj.project(ecf,'nonneg_weights',nonneg_weights);
                 rss_traj(1) = obj.rss(ecf);
                 return
             end
-            currentPhi = obj.project(ecf,nonneg_weights);
+            currentPhi = obj.project(ecf,'nonneg_weights',nonneg_weights);
             obj.cpts.gradCompute(ecf, currentPhi); % compute initial gradient
             converged = 0;
             stepsizeOld=100;
@@ -169,7 +169,7 @@ classdef MODEL < handle
                 stepsizeOld = stepsize;
                 
                 % only call project again after finding good stepsize
-                xbeta = obj.project(ecf,nonneg_weights);
+                xbeta = obj.project(ecf,'nonneg_weights',nonneg_weights);
                 % compute new gradient
                 dX=obj.cpts.gradCompute(ecf, xbeta);
                 
