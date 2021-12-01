@@ -1,5 +1,7 @@
 # Pleiotropic Decomposition Regression (PDR)
 
+PDR is a method to decompose heritability into components consisting of SNPs with similar pleiotropic association patterns. It can also boost association power by producing improved effect size estimates.
+
 ![Method schematic](https://github.com/jballard28/PDR/blob/main/imgs/pdr_schematic.png)
 
 # Demo
@@ -118,3 +120,8 @@ The variance explained scatter plots comparing expected and observed variance ca
 
 Both of these plotting methods require the output of `expected_observed_r2` (see above).
 
+# Reference
+Ballard, J.L. and O'Connor, L.J. Shared components of heritability across genetically correlated traits. bioRxiv (2021). https://doi.org/10.1101/2021.11.25.470021
+
+# Contact
+J.L.B. (jballard@broadinstitute.org) or L.J.O. (loconnor@broadinstitute.org)
