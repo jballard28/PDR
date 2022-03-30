@@ -193,6 +193,10 @@ classdef DATA < matlab.mixin.Copyable
         
             % covariance of alpha
                 trait_cov=obj.z'*obj.z/length(obj.z)-obj.sigmaEps;
+
+                if trait_cov <= 0
+                    error('heritability is not positive');
+                end
                 
                 % 1/sqrt(var(alpha))
                 normalizer=1./sqrt(diag(trait_cov));
